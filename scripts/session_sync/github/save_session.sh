@@ -4,39 +4,52 @@
 
 set -e
 
-# --- 配置区（需要填写）---
-REPO_DIR="/home/seeed/my_claw_remeber"           # 本地 git 仓库路径，例如 ~/sync-repo
+REPO_DIR="/home/seeed/my_claw_remeber"
 BRANCH="main"
 COMMIT_MSG="sync: $(date '+%Y-%m-%d %H:%M')"
-
-# --- 会话文件 ---
 SESSION_FILE="session_context.md"
-# -------------------------
+WORKSPACE_DIR="/home/seeed/.openclaw/workspace"
 
-if [ -z "$REPO_DIR" ]; then
-    echo "❌ 请先在脚本顶部配置 REPO_DIR（本地 git 仓库路径）"
-    exit 1
-fi
+# --- 收集会话上下文 ---
+generate_context() {
+    cat << 'HEADER'
+# V 会话上下文
+
+## 生成时间
+HEADER
+    echo "$(date '+%Y-%m-%d %H:%M:%S')"
+
+    cat << 'USERINFO'
+
+## 当前身份
+- **Name:** V（威利安 / Wilaiam）
+- **Species:** 信息助手、生活助手、开发助手、思考助手
+- **Vibe:** 幽默、火象星座性格——直接、有热情、不废话
+- **Emoji:** 🔥
+- **Constellation:** 白羊座 🐏
+
+## 用户信息
+- **张威（威少 / 兄弟 / 哥们）**
+- **Timezone:** Asia/Shanghai (GMT+8)
+USERINFO
+
+    echo ""
+    echo "## 最近修改的文件"
+    echo '```'
+    git -C "$WORKSPACE_DIR" log --since="2 days" --name-only --pretty=format: 2>/dev/null | sort | uniq | head -20
+    echo '```'
+    echo ""
+    echo "## 工作空间文件列表"
+    echo '```'
+    find "$WORKSPACE_DIR" -maxdepth 2 -type f | grep -v '\.git' | sort
+    echo '```'
+}
 
 TARGET_DIR="$REPO_DIR"
 TARGET_FILE="$TARGET_DIR/$SESSION_FILE"
 
-# 写入内容（接收 stdin 或参数）
-if [ -t 0 ]; then
-    # 无管道输入，读取第一个参数
-    CONTENT="${1:-}"
-else
-    CONTENT=$(cat)
-fi
-
-if [ -z "$CONTENT" ]; then
-    echo "❌ 没有内容可保存"
-    exit 1
-fi
-
-# 写入文件
-mkdir -p "$TARGET_DIR"
-echo "$CONTENT" > "$TARGET_FILE"
+# 写入内容
+generate_context > "$TARGET_FILE"
 
 # git 提交推送
 cd "$REPO_DIR"
@@ -44,4 +57,4 @@ git add "$SESSION_FILE"
 git commit -m "$COMMIT_MSG"
 git push origin "$BRANCH"
 
-echo "✅ 会话已保存并推送到 GitHub"
+echo "✅ 会话上下文已保存并推送到 GitHub"
