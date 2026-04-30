@@ -8,8 +8,6 @@ param(
 $REPO_URL = "git@github.com:doublelf/my_claw_remeber.git"
 $STARTUP_DIR = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 
-$ESCOL = "`e"
-
 function Write-Step($msg) {
     Write-Host "  $msg" -ForegroundColor Cyan
 }
@@ -48,26 +46,34 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 Write-OK "Git: $(git --version)"
 Write-Host ""
 
-# --- SSH 密钥 ---
+# --- SSH 密钥 (使用 Git Bash) ---
 $SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"
-if (Test-Path $SSH_KEY) {
+$GIT_BASH = "C:\Program Files\Git\bin\bash.exe"
+
+if (Test-Path "$SSH_KEY") {
     Write-OK "SSH key exists"
 } else {
-    Write-Step "Generating SSH key..."
+    Write-Step "Generating SSH key via Git Bash..."
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.ssh" -Force | Out-Null
-    ssh-keygen -t ed25519 -C "v@openclaw" -f $SSH_KEY -N ""
+    $cmd = "`"$GIT_BASH`" -c `"ssh-keygen -t ed25519 -C 'v@openclaw' -f '$SSH_KEY' -q -N ''`""
+    Invoke-Expression $cmd
     Write-OK "SSH key generated"
 }
 Write-Host ""
 
 # --- 打印公钥 ---
-Write-Host "============================================"
-Write-Host "  Add this public key to GitHub"
-Write-Host "============================================"
-Write-Host ""
-Get-Content "$SSH_KEY.pub"
-Write-Host ""
-Read-Host "Press Enter to continue (after adding key to GitHub)"
+if (Test-Path "$SSH_KEY.pub") {
+    Write-Host "============================================"
+    Write-Host "  Add this public key to GitHub"
+    Write-Host "============================================"
+    Write-Host ""
+    Get-Content "$SSH_KEY.pub"
+    Write-Host ""
+    Read-Host "Press Enter to continue (after adding key to GitHub)"
+} else {
+    Write-WARN "SSH key not generated. Please run manually:"
+    Write-Host "   $GIT_BASH -c 'ssh-keygen -t ed25519 -C v@openclaw'"
+}
 Write-Host ""
 
 # --- 克隆仓库 ---
@@ -100,13 +106,10 @@ Write-Host ""
 # --- 创建启动脚本 ---
 Write-Step "Creating startup script..."
 $bootScript = "$RepoDir\scripts\session_sync\openclaw_launch.bat"
-$GIT_BASH = "C:\Program Files\Git\bin\bash.exe"
 $SESSION_READ = "$RepoDir\scripts\session_sync\session_read.sh"
 
 $batContent = "@echo off`n"
-$batContent += "if exist `"$GIT_BASH`" (`"$GIT_BASH`" -c `"bash $SESSION_READ`") else (`n"
-$batContent += "  echo Git Bash not found, skipping session sync`n"
-$batContent += ")`n"
+$batContent += "if exist `"C:\Program Files\Git\bin\bash.exe`" (`"C:\Program Files\Git\bin\bash.exe`" -c `"bash '$SESSION_READ'`")`n"
 
 Set-Content -Path $bootScript -Value $batContent -Encoding ASCII
 Write-OK "Startup script: $bootScript"
