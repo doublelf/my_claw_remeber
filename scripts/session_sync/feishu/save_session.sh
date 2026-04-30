@@ -5,9 +5,9 @@
 set -e
 
 # --- 配置区（需要填写）---
-FEISHU_APP_ID=""          # 飞书应用 App ID
-FEISHU_APP_SECRET=""      # 飞书应用 App Secret
-DOC_TOKEN=""              # 目标文档的 token（打开文档后 URL 中可找到）
+FEISHU_APP_ID="cli_a979ad05e13b9cb2"          # 飞书应用 App ID
+FEISHU_APP_SECRET="BQTqnzkt6kUXS9ZAcRkBVIVxUGdfPDkO"      # 飞书应用 App Secret
+DOC_TOKEN="Jr9TdFT91oVbt2xrS2fctC3znBc"              # 目标文档的 token（打开文档后 URL 中可找到）
 # -------------------------
 
 # --- 会话文件 ---
@@ -45,7 +45,7 @@ curl -s -X POST "https://open.feishu.cn/open-apis/docx/v1/documents/$DOC_TOKEN/b
         \"children\": [{
             \"block_type\": 2,
             \"text\": {
-                \"elements\": [{\"text_run\": {\"content\": \"$SESSION_CONTENT\"}}],
+                \"elements\": [{\"text_run\": {\"content\": $(echo "$SESSION_CONTENT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")}}],
                 \"style\": {}
             }
         }],
