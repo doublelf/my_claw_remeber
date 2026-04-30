@@ -1,8 +1,5 @@
-# openclaw_setup.ps1
-# OpenClaw 新设备安装脚本 - Windows 版
-# 使用 PowerShell 7 运行
-
-# 需要以管理员权限运行
+# OpenClaw setup script - Windows (PowerShell 7)
+# Run as Administrator
 
 param(
     [string]$RepoDir = "$env:USERPROFILE\.openclaw\workspace"
@@ -11,146 +8,137 @@ param(
 $REPO_URL = "git@github.com:doublelf/my_claw_remeber.git"
 $STARTUP_DIR = "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup"
 
-function Write-Step {
-    param([string]$msg)
+$ESCOL = "`e"
+
+function Write-Step($msg) {
     Write-Host "  $msg" -ForegroundColor Cyan
 }
 
-function Write-success {
-    param([string]$msg)
-    Write-Host "  ✅ $msg" -ForegroundColor Green
+function Write-OK($msg) {
+    Write-Host "  [OK] $msg" -ForegroundColor Green
 }
 
-function Write-warn {
-    param([string]$msg)
-    Write-Host "  ⚠️  $msg" -ForegroundColor Yellow
+function Write-WARN($msg) {
+    Write-Host "  [WARN] $msg" -ForegroundColor Yellow
 }
 
-Write-Host "============================================" -ForegroundColor Magenta
-Write-Host "  V (OpenClaw) 一键安装脚本 - Windows 版" -ForegroundColor Magenta
-Write-Host "============================================" -ForegroundColor Magenta
+Write-Host "============================================"
+Write-Host "  OpenClaw Setup - Windows"
+Write-Host "============================================"
 Write-Host ""
 
-# --- 检测 OpenClaw 是否已安装 ---
-Write-Host "🔍 检测 OpenClaw..." -ForegroundColor Yellow
+# --- 检测 OpenClaw ---
+Write-Step "Checking OpenClaw..."
 if (Get-Command openclaw -ErrorAction SilentlyContinue) {
-    Write-success "OpenClaw 已安装: $(openclaw --version 2>&1 | Select-Object -First 1)"
+    $ver = $(openclaw --version 2>&1 | Select-Object -First 1)
+    Write-OK "OpenClaw installed: $ver"
 } else {
-    Write-Host "📦 安装 OpenClaw..." -ForegroundColor Yellow
+    Write-Step "Installing OpenClaw..."
     npm install -g openclaw
-    Write-success "OpenClaw 安装完成"
+    Write-OK "OpenClaw installed"
 }
 Write-Host ""
 
-# --- 检测 git 是否可用 ---
+# --- 检测 Git ---
 if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Git 未安装，请先安装 Git for Windows" -ForegroundColor Red
-    Write-Host "   下载地址: https://git-scm.com/download/win" -ForegroundColor Gray
+    Write-Host "[ERROR] Git not found. Please install Git for Windows first."
+    Write-Host "   Download: https://git-scm.com/download/win"
     exit 1
 }
-Write-Host "✅ Git 已安装: $(git --version)" -ForegroundColor Green
+Write-OK "Git: $(git --version)"
 Write-Host ""
 
-# --- 生成 SSH 密钥 ---
+# --- SSH 密钥 ---
 $SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"
-if (Test-Path "$SSH_KEY") {
-    Write-Host "🔑 SSH 密钥已存在，跳过生成"
+if (Test-Path $SSH_KEY) {
+    Write-OK "SSH key exists"
 } else {
-    Write-Host "🔑 生成 SSH 密钥..." -ForegroundColor Yellow
+    Write-Step "Generating SSH key..."
     New-Item -ItemType Directory -Path "$env:USERPROFILE\.ssh" -Force | Out-Null
     ssh-keygen -t ed25519 -C "v@openclaw" -f $SSH_KEY -N ""
-    Write-success "SSH 密钥生成完成"
+    Write-OK "SSH key generated"
 }
 Write-Host ""
 
 # --- 打印公钥 ---
-Write-Host "============================================" -ForegroundColor Magenta
-Write-Host "  请将下面的公钥添加到 GitHub" -ForegroundColor Magenta
-Write-Host "============================================" -ForegroundColor Magenta
+Write-Host "============================================"
+Write-Host "  Add this public key to GitHub"
+Write-Host "============================================"
 Write-Host ""
 Get-Content "$SSH_KEY.pub"
 Write-Host ""
-Read-Host "按回车继续（已在 GitHub 添加公钥）"
+Read-Host "Press Enter to continue (after adding key to GitHub)"
 Write-Host ""
 
 # --- 克隆仓库 ---
 if (Test-Path "$RepoDir\.git") {
-    Write-Host "📁 工作空间已存在，拉取最新..." -ForegroundColor Yellow
+    Write-Step "Workspace exists, pulling latest..."
     Set-Location $RepoDir
     git pull origin main
 } else {
-    Write-Host "📡 克隆 GitHub 仓库..." -ForegroundColor Yellow
+    Write-Step "Cloning repo..."
     git clone $REPO_URL $RepoDir
 }
-Write-success "仓库同步完成"
+Write-OK "Repo synced"
 Write-Host ""
 
 # --- 配置脚本路径 ---
-Write-Host "⚙️  配置本地路径..." -ForegroundColor Yellow
+Write-Step "Configuring paths..."
 $saveScript = "$RepoDir\scripts\session_sync\github\save_session.sh"
 $readScript = "$RepoDir\scripts\session_sync\github\read_session.sh"
 
-@($saveScript, $readScript) | ForEach-Object {
-    if (Test-Path $_) {
-        (Get-Content $_) -replace 'REPO_DIR="/home/seeed/my_claw_remeber"', "REPO_DIR=`"$RepoDir`"" | Set-Content $_
-        Write-success "已配置: $(Split-Path $_ -Leaf)"
+foreach ($script in @($saveScript, $readScript)) {
+    if (Test-Path $script) {
+        $content = Get-Content $script -Raw
+        $content = $content -replace 'REPO_DIR="/home/seeed/my_claw_remeber"', "REPO_DIR=`"$RepoDir`""
+        Set-Content -Path $script -Value $content -NoNewline -Encoding UTF8
+        Write-OK "Configured: $(Split-Path $script -Leaf)"
     }
 }
 Write-Host ""
 
 # --- 创建启动脚本 ---
-Write-Host "🚀 创建开机启动脚本..." -ForegroundColor Yellow
+Write-Step "Creating startup script..."
+$bootScript = "$RepoDir\scripts\session_sync\openclaw_launch.bat"
+$GIT_BASH = "C:\Program Files\Git\bin\bash.exe"
+$SESSION_READ = "$RepoDir\scripts\session_sync\session_read.sh"
 
-$bootScript = "$RepoDir\scripts\session_sync\openclaw_launch.ps1"
-$bootContent = @"
-# OpenClaw 启动时自动读取会话
-`$WScript = New-Object -ComObject WScript.Shell
-`$WScript.Popup "V 正在同步会话...", 2, "OpenClaw", 0x40
+$batContent = "@echo off`n"
+$batContent += "if exist `"$GIT_BASH`" (`"$GIT_BASH`" -c `"bash $SESSION_READ`") else (`n"
+$batContent += "  echo Git Bash not found, skipping session sync`n"
+$batContent += ")`n"
 
-`$workspaceDir = "$RepoDir"
-`$sessionRead = "`$workspaceDir\scripts\session_sync\session_read.sh"
-
-# 使用 Git Bash 执行
-`$bashExe = "C:\Program Files\Git\bin\bash.exe"
-if (Test-Path `$bashExe) {
-    & `$bashExe -c `$sessionRead
-} else {
-    # 尝试 WSL
-    & wsl bash -c `$sessionRead 2>`$null
-}
-"@
-
-$bootContent | Set-Content $bootScript -Encoding UTF8
-Write-success "启动脚本已创建: $bootScript"
+Set-Content -Path $bootScript -Value $batContent -Encoding ASCII
+Write-OK "Startup script: $bootScript"
 Write-Host ""
 
-# --- 添加到 Windows 开机自启 ---
-$startupScript = "$STARTUP_DIR\openclaw_v_startup.bat"
-$startupBat = "@echo off`ncd /d `"$RepoDir`"\scripts\session_sync`nstart /B bash session_read.sh"
-$startupBat | Set-Content $startupScript -Encoding ASCII
-Write-success "已添加开机自启: $startupScript"
+# --- 添加开机自启 ---
+$startupBat = "$STARTUP_DIR\openclaw_v_sync.bat"
+$startupContent = "@echo off`ncd /d `"$RepoDir\scripts\session_sync`"`nstart /B bash session_read.sh"
+Set-Content -Path $startupBat -Value $startupContent -Encoding ASCII
+Write-OK "Startup entry added"
 Write-Host ""
 
-# --- 验证 GitHub 连接 ---
-Write-Host "🔍 验证 GitHub 连接..." -ForegroundColor Yellow
+# --- 验证 GitHub ---
+Write-Step "Testing GitHub SSH..."
 try {
-    $result = ssh -T git@github.com 2>&1
-    if ($result -match "successfully") {
-        Write-success "GitHub SSH 连接成功"
+    $sshResult = ssh -T git@github.com 2>&1
+    if ($sshResult -match "successfully") {
+        Write-OK "GitHub SSH connected"
     } else {
-        Write-warn "GitHub 连接验证失败，请检查公钥是否正确添加"
-        Write-Host "   错误信息: $result" -ForegroundColor Gray
+        Write-WARN "GitHub SSH failed. Check if public key was added correctly."
+        Write-Host "   Result: $sshResult" -ForegroundColor Gray
     }
 } catch {
-    Write-warn "SSH 连接失败，请确认 Git Bash 已安装并配置"
+    Write-WARN "SSH connection failed. Make sure Git Bash is installed."
 }
 Write-Host ""
 
 # --- 完成 ---
-Write-Host "============================================" -ForegroundColor Magenta
-Write-Host "  ✅ 安装完成！" -ForegroundColor Magenta
-Write-Host "============================================" -ForegroundColor Magenta
+Write-Host "============================================"
+Write-Host "  DONE"
+Write-Host "============================================"
 Write-Host ""
-Write-Host "启动命令: openclaw gateway" -ForegroundColor Green
-Write-Host "开机自动: 已配置，下次开机生效" -ForegroundColor Green
+Write-Host "  Run: openclaw gateway" -ForegroundColor Green
+Write-Host "  Auto-start: configured for next boot" -ForegroundColor Green
 Write-Host ""
