@@ -46,18 +46,24 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 Write-OK "Git: $(git --version)"
 Write-Host ""
 
-# --- SSH 密钥 (使用 Git Bash) ---
+# --- SSH 密钥 ---
 $SSH_KEY = "$env:USERPROFILE\.ssh\id_ed25519"
 $GIT_BASH = "C:\Program Files\Git\bin\bash.exe"
 
 if (Test-Path "$SSH_KEY") {
     Write-OK "SSH key exists"
-} else {
+} elseif (Test-Path $GIT_BASH) {
     Write-Step "Generating SSH key via Git Bash..."
-    New-Item -ItemType Directory -Path "$env:USERPROFILE\.ssh" -Force | Out-Null
-    $cmd = "`"$GIT_BASH`" -c `"ssh-keygen -t ed25519 -C 'v@openclaw' -f '$SSH_KEY' -q -N ''`""
-    Invoke-Expression $cmd
-    Write-OK "SSH key generated"
+    $sshDir = "$env:USERPROFILE\.ssh"
+    New-Item -ItemType Directory -Path $sshDir -Force | Out-Null
+    & $GIT_BASH -c "ssh-keygen -t ed25519 -C 'v@openclaw' -f '$SSH_KEY' -q -N ''" 2>$null
+    if (Test-Path "$SSH_KEY") {
+        Write-OK "SSH key generated"
+    } else {
+        Write-WARN "SSH key generation may have failed"
+    }
+} else {
+    Write-WARN "Git Bash not found at: $GIT_BASH"
 }
 Write-Host ""
 
@@ -71,8 +77,7 @@ if (Test-Path "$SSH_KEY.pub") {
     Write-Host ""
     Read-Host "Press Enter to continue (after adding key to GitHub)"
 } else {
-    Write-WARN "SSH key not generated. Please run manually:"
-    Write-Host "   $GIT_BASH -c 'ssh-keygen -t ed25519 -C v@openclaw'"
+    Write-WARN "SSH public key not found. Did you add the key to GitHub?"
 }
 Write-Host ""
 
@@ -85,7 +90,9 @@ if (Test-Path "$RepoDir\.git") {
     Write-Step "Cloning repo..."
     git clone $REPO_URL $RepoDir
 }
-Write-OK "Repo synced"
+if (Test-Path "$RepoDir") {
+    Write-OK "Repo synced"
+}
 Write-Host ""
 
 # --- 配置脚本路径 ---
@@ -105,8 +112,11 @@ Write-Host ""
 
 # --- 创建启动脚本 ---
 Write-Step "Creating startup script..."
-$bootScript = "$RepoDir\scripts\session_sync\openclaw_launch.bat"
-$SESSION_READ = "$RepoDir\scripts\session_sync\session_read.sh"
+$syncDir = "$RepoDir\scripts\session_sync"
+New-Item -ItemType Directory -Path $syncDir -Force | Out-Null
+
+$bootScript = "$syncDir\openclaw_launch.bat"
+$SESSION_READ = "$syncDir\session_read.sh"
 
 $batContent = "@echo off`n"
 $batContent += "if exist `"C:\Program Files\Git\bin\bash.exe`" (`"C:\Program Files\Git\bin\bash.exe`" -c `"bash '$SESSION_READ'`")`n"
@@ -117,7 +127,7 @@ Write-Host ""
 
 # --- 添加开机自启 ---
 $startupBat = "$STARTUP_DIR\openclaw_v_sync.bat"
-$startupContent = "@echo off`ncd /d `"$RepoDir\scripts\session_sync`"`nstart /B bash session_read.sh"
+$startupContent = "@echo off`ncd /d `"$syncDir`"`nstart /B bash session_read.sh"
 Set-Content -Path $startupBat -Value $startupContent -Encoding ASCII
 Write-OK "Startup entry added"
 Write-Host ""
@@ -133,7 +143,7 @@ try {
         Write-Host "   Result: $sshResult" -ForegroundColor Gray
     }
 } catch {
-    Write-WARN "SSH connection failed. Make sure Git Bash is installed."
+    Write-WARN "SSH connection failed"
 }
 Write-Host ""
 
