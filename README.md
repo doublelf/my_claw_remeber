@@ -29,7 +29,7 @@
 
 ```
 my_claw_remeber/
-├── README.md               # 本文件
+├── README.md               # 仓库介绍文件
 ├── IDENTITY.md             # V 的身份定义
 ├── USER.md                 # 用户信息
 ├── SOUL.md                 # 行为准则
@@ -38,8 +38,9 @@ my_claw_remeber/
 ├── TOOLS.md                # 本地工具笔记
 ├── session_context.md      # 当前会话摘要
 └── scripts/
-    ├── openclaw_setup.sh   # 新设备一键安装脚本
-    └── session_sync/       # 会话同步工具
+    ├── openclaw_setup.sh       # Linux/macOS 一键安装脚本
+    ├── openclaw_setup.ps1      # Windows PowerShell 安装脚本
+    └── session_sync/           # 会话同步工具
         ├── session_save.sh      # 保存会话（飞书优先 → GitHub备选）
         ├── session_read.sh      # 读取会话（自动合并，有冲突询问）
         ├── feishu/              # 飞书同步脚本
@@ -50,6 +51,8 @@ my_claw_remeber/
 
 ## 新设备安装
 
+### Linux / macOS
+
 ```bash
 git clone git@github.com:doublelf/my_claw_remeber.git /tmp/oc_setup
 cd /tmp/oc_setup
@@ -57,6 +60,18 @@ bash scripts/openclaw_setup.sh
 ```
 
 详细步骤请查看：`scripts/openclaw_setup.sh`
+
+### Windows
+
+```powershell
+git clone git@github.com:doublelf/my_claw_remeber.git $TEMP\oc_setup
+cd $TEMP\oc_setup
+powershell -ExecutionPolicy Bypass -File scripts\openclaw_setup.ps1
+```
+
+详细步骤请查看：`scripts/openclaw_setup.ps1`
+
+> ⚠️ 需要 Git for Windows 和 PowerShell 7
 
 ---
 
